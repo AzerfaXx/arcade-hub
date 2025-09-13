@@ -6,7 +6,7 @@
     <title>Morpion - ArcadeHub</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
         .morpion-container { display: flex; flex-direction: column; align-items: center; gap: 20px; }
         #status-text { font-size: 1.5rem; font-family: var(--font-arcade); color: var(--color-tertiary-glow); height: 30px; }
@@ -247,7 +247,7 @@
         
         // --- LOGIQUE MULTIJOUEUR (CLIENT) ---
         function initOnline() {
-            socket = io("https://morpion-serveur.onrender.com"); // Se connecte au serveur
+            socket = io("https://arcade-hub.onrender.com"); // Se connecte au serveur
             
             document.getElementById('host-btn').onclick = () => socket.emit('hostGame');
             document.getElementById('join-btn').onclick = () => {
