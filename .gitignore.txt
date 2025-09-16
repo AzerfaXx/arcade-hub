@@ -1,1 +1,2 @@
-git rm -r --cached node_modules
+# Ignorer le dossier des dépendances Node.js
+node_modules
