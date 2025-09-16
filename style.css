@@ -467,3 +467,43 @@ h1.glitch {
 #music-toggle-btn.playing:hover {
     box-shadow: 0 0 20px var(--color-primary-glow);
 }
+
+/* --- STYLES POUR LE JOYSTICK HORIZONTAL --- */
+@media (pointer: coarse) {
+    #joystick-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: fixed; /* <-- La clé est ici : on le fixe à l'écran */
+    bottom: 20px;    /* <-- On le colle à 20px du bas */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 80px;
+    z-index: 200;
+    user-select: none;
+}
+
+    #joystick-base {
+        width: 180px;
+        height: 60px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid var(--color-secondary-glow);
+        border-radius: 30px;
+        position: relative;
+        box-shadow: 0 0 10px var(--color-secondary-glow);
+    }
+
+    #joystick-knob {
+        position: absolute;
+        width: 50px;
+        height: 50px;
+        background: var(--color-secondary-glow);
+        border-radius: 50%;
+        top: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        box-shadow: 0 0 15px var(--color-secondary-glow);
+        transition: transform 0.1s linear; /* Pour un retour en douceur */
+    }
+}

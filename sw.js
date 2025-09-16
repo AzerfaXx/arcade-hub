@@ -1,7 +1,9 @@
-const CACHE_NAME = "arcadehub-cache-v1";
+// On incrémente la version du cache pour forcer la mise à jour
+const CACHE_NAME = "arcadehub-cache-v1.2"; // Version incrémentée
 
+// Liste des ressources à mettre en cache, maintenant mieux organisée
 const ASSETS_TO_CACHE = [
-  // Fichiers de base
+  // Fichiers de base de l'application (App Shell)
   "index.html",
   "style.css",
   "script.js",
@@ -9,7 +11,7 @@ const ASSETS_TO_CACHE = [
   "icons/icon-192.png",
   "icons/icon-512.png",
 
-  // Fichiers des jeux
+  // Pages des jeux
   "snake.html",
   "pong.html",
   "tetris.html",
@@ -17,8 +19,23 @@ const ASSETS_TO_CACHE = [
   "2048.html",
   "demineur.html",
   "solitaire.html",
-  "morpion.html",    // NOUVEAU
-  "voiture.html",    // NOUVEAU
+  "morpion.html",
+  "glow-breaker.html",
+  "synth-jumper.html",
+  "gem-crush.html",
+
+  // Images des jeux pour la page d'accueil
+  "snake.png",
+  "pong.png",
+  "tetris.png",
+  "space.png",
+  "2048.png",
+  "demineur.png",
+  "solitaire.png",
+  "morpion.png",
+  "glow-breaker.png",
+  "synth-jumper.png",
+  "gem-crush.png",
 
   // Sons
   "sounds/ambiance.mp3",
@@ -42,41 +59,72 @@ const ASSETS_TO_CACHE = [
   "sounds/shuffle.mp3",
   "sounds/card-flip.mp3",
   "sounds/card-deal.mp3",
-  "sounds/place-piece.mp3" // NOUVEAU SON POUR MORPION
+  "sounds/place-piece.mp3",
+  "sounds/jump.mp3",
+  "sounds/platform-break.mp3",
+  "sounds/fall.mp3",
+  "sounds/bonus-create.mp3",
+  "sounds/bomb-explode.mp3",
 ];
 
-// ... (le reste du fichier sw.js ne change pas) ...
+// Étape d'installation : mise en cache des ressources
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
+      console.log("Mise en cache des ressources initiales");
       return cache.addAll(ASSETS_TO_CACHE).catch(err => {
           console.error("Échec de la mise en cache de certains fichiers : ", err);
       });
     })
   );
+  self.skipWaiting();
 });
 
+// Étape d'activation : nettoyage des anciens caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log("Suppression de l'ancien cache :", key);
             return caches.delete(key);
           }
         })
       )
     )
   );
+  return self.clients.claim();
 });
 
+// Étape de fetch : intercepter les requêtes réseau
 self.addEventListener("fetch", (event) => {
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) {
           return cachedResponse;
         }
-        return fetch(event.request);
+
+        return fetch(event.request).then((networkResponse) => {
+            // --- CORRECTION APPLIQUÉE ICI ---
+            // On ne met en cache que les réponses valides (status 200)
+            // pour éviter l'erreur "Partial response (206)" avec les fichiers audio.
+            if (networkResponse && networkResponse.status === 200) {
+                const responseToCache = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(event.request, responseToCache);
+                });
+            }
+            return networkResponse;
+        }).catch(error => {
+            console.error('Échec du fetch et aucune ressource en cache:', error);
+            // Optionnel : retourner une page de fallback
+            // return caches.match('offline.html');
+        });
       })
     );
 });

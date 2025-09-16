@@ -1,91 +1,168 @@
-// Importe les bibliothèques nécessaires
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
+const mongoose = require('mongoose');
 
 const app = express();
 const server = http.createServer(app);
-// Configure Socket.IO pour autoriser les connexions depuis n'importe quelle origine (utile pour Netlify + autre hébergeur)
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+
+// --- Middleware ---
+// Indique au serveur de rendre les fichiers du dossier 'public' accessibles
+app.use(express.static('public'));
+// Permet au serveur de comprendre les requêtes envoyées en format JSON
+app.use(express.json());
+
+// --- Connexion à la base de données MongoDB ---
+mongoose.connect('mongodb://localhost:27017/arcadehub')
+  .then(() => console.log('[SERVEUR] Connexion à MongoDB réussie !'))
+  .catch(err => console.error('[SERVEUR] Erreur de connexion à MongoDB', err));
+
+// --- Schéma de la base de données ---
+// Définit la structure des données pour chaque joueur/score
+const scoreSchema = new mongoose.Schema({
+    gameName: { type: String, required: true, index: true },
+    playerName: { type: String, required: true },
+    score: { type: Number, required: true },
+    createdAt: { type: Date, default: Date.now }
 });
 
-// Garde en mémoire les parties en cours
-const games = {}; // ex: { 'ABCD': { players: [socket1, socket2], turn: 'X' } }
+// Création d'un index pour s'assurer que le couple playerName/gameName est unique
+scoreSchema.index({ playerName: 1, gameName: 1 }, { unique: true });
 
-// Se déclenche à chaque fois qu'un nouveau joueur se connecte
+const Score = mongoose.model('Score', scoreSchema);
+
+
+// ==================================================================
+//               ROUTES API POUR LES SCORES
+// ==================================================================
+
+// Route pour enregistrer ou mettre à jour un score (REMPLACE les anciennes routes)
+app.post('/api/scores', async (req, res) => {
+    try {
+        const { playerName, score, gameName } = req.body;
+
+        // Validation simple des données reçues
+        if (!playerName || playerName.trim().length < 3 || typeof score !== 'number' || !gameName) {
+            return res.status(400).json({ message: "Données invalides (pseudo 3 car. min, score, nom du jeu)." });
+        }
+
+        // On cherche un joueur existant avec ce pseudo pour ce jeu
+        const sanitizedPlayerName = playerName.trim().substring(0, 15);
+
+        const player = await Score.findOne({ playerName: sanitizedPlayerName, gameName });
+
+        if (player) {
+            // Si le joueur existe et que son nouveau score est meilleur, on le met à jour
+            if (score > player.score) {
+                player.score = score;
+                await player.save();
+                console.log(`[SERVEUR] Nouveau meilleur score pour ${sanitizedPlayerName} sur ${gameName}: ${score}`);
+                return res.status(200).json({ message: "Meilleur score mis à jour !", player });
+            }
+            return res.status(200).json({ message: "Le score n'a pas dépassé le record." });
+
+        } else {
+            // Si le joueur n'existe pas, on crée une nouvelle entrée dans le classement
+            const newPlayer = new Score({
+                gameName,
+                playerName: sanitizedPlayerName,
+                score
+            });
+            await newPlayer.save();
+            console.log(`[SERVEUR] Nouveau joueur ajouté au classement ${gameName}: ${sanitizedPlayerName} avec ${score}`);
+            res.status(201).json({ message: "Score enregistré !", player: newPlayer });
+        }
+
+    } catch (error) {
+        // Gère le cas où le pseudo est déjà pris (violation de l'index unique)
+        if (error.code === 11000) {
+             return res.status(409).json({ message: "Ce pseudo est déjà pris pour ce jeu." });
+        }
+        console.error("[SERVEUR] Erreur lors de la soumission du score:", error);
+        res.status(500).json({ message: "Erreur interne du serveur." });
+    }
+});
+
+
+// Route pour récupérer le classement d'un jeu
+app.get('/api/scores/:gameName', async (req, res) => {
+    try {
+        const { gameName } = req.params;
+        // On cherche les joueurs avec un score supérieur à 0
+        const topScores = await Score.find({ gameName: gameName, score: { $gt: 0 } })
+                                     .sort({ score: -1 }) // Trie du plus haut au plus bas
+                                     .limit(10);          // Ne garde que les 10 meilleurs
+        res.json(topScores);
+    } catch (error) {
+        console.error("[SERVEUR] Erreur lors de la récupération du classement:", error);
+        res.status(500).json({ message: "Erreur interne du serveur." });
+    }
+});
+
+
+// ==================================================================
+//               GESTION MULTIJOUEUR (INCHANGÉ)
+// ==================================================================
+const io = socketIo(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] }
+});
+
+const games = {};
+
 io.on('connection', (socket) => {
-    console.log('Un utilisateur s\'est connecté :', socket.id);
+    console.log(`[SERVEUR] Connexion: ${socket.id}`);
 
-    // Quand un joueur veut héberger une partie
     socket.on('hostGame', () => {
-        const gameCode = generateGameCode(); // Crée un code unique
-        games[gameCode] = {
-            players: [socket],
-            turn: 'X'
-        };
-        socket.join(gameCode); // Le joueur rejoint une "salle" avec le nom du code
-        socket.emit('gameHosted', gameCode); // Envoie le code au joueur qui a hébergé
+        const gameCode = generateGameCode();
+        games[gameCode] = { players: [socket] };
+        socket.join(gameCode);
+        socket.gameCode = gameCode;
+        socket.emit('gameHosted', gameCode);
+        console.log(`[SERVEUR] ${socket.id} a créé la partie ${gameCode}.`);
     });
 
-    // Quand un joueur veut rejoindre une partie
     socket.on('joinGame', (gameCode) => {
         const game = games[gameCode];
-        if (!game) {
-            socket.emit('error', 'Code de partie invalide.');
-            return;
-        }
-        if (game.players.length >= 2) {
-            socket.emit('error', 'La partie est déjà pleine.');
-            return;
-        }
+        if (!game) return socket.emit('error', 'Code invalide.');
+        if (game.players.length >= 2) return socket.emit('error', 'Partie pleine.');
 
         socket.join(gameCode);
         game.players.push(socket);
+        socket.gameCode = gameCode;
         
-        // La partie commence ! On informe les deux joueurs.
-        io.to(gameCode).emit('gameStarted', 'O'); // Le joueur qui rejoint est 'O'
-        game.players[0].emit('gameStarted', 'X'); // L'hôte est 'X'
+        console.log(`[SERVEUR] ${socket.id} a rejoint ${gameCode}. Début de la partie.`);
+        
+        game.players[0].emit('gameStarted', 'X');
+        game.players[1].emit('gameStarted', 'O');
     });
 
-    // Quand un joueur effectue un coup
     socket.on('makeMove', (data) => {
-        const gameCode = Array.from(socket.rooms)[1]; // Trouve le code de la partie
-        // Renvoie le coup à l'autre joueur dans la même salle
-        socket.to(gameCode).emit('moveMade', data);
+        if (socket.gameCode) {
+            socket.to(socket.gameCode).emit('moveMade', data);
+        }
     });
 
-    // Gère la déconnexion
     socket.on('disconnect', () => {
-        console.log('Un utilisateur s\'est déconnecté :', socket.id);
-        // Trouve la partie à laquelle le joueur appartenait
-        for (const gameCode in games) {
-            const game = games[gameCode];
-            const playerIndex = game.players.findIndex(p => p.id === socket.id);
-            if (playerIndex !== -1) {
-                // Informe l'autre joueur que son adversaire est parti
-                socket.to(gameCode).emit('opponentDisconnected');
-                delete games[gameCode]; // Supprime la partie
-                break;
-            }
+        console.log(`[SERVEUR] Déconnexion: ${socket.id}`);
+        const gameCode = socket.gameCode;
+        if (gameCode && games[gameCode]) {
+            socket.to(gameCode).emit('opponentDisconnected');
+            delete games[gameCode];
+            console.log(`[SERVEUR] Partie ${gameCode} supprimée.`);
         }
     });
 });
 
-// Fonction simple pour générer un code de 4 lettres
 function generateGameCode() {
     let code = '';
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     for (let i = 0; i < 4; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    // S'assure que le code n'existe pas déjà
     return games[code] ? generateGameCode() : code;
 }
 
-// Lance le serveur
+
+// --- Démarrage du serveur ---
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Serveur en écoute sur le port ${PORT}`));

@@ -14,8 +14,11 @@
 
         /* NOUVEAU : Ajout pour éviter le "tirer pour rafraîchir" sur mobile */
         body {
-            /* Empêche le scroll vertical de "déborder" et de déclencher le rafraîchissement */
-            overscroll-behavior-y: contain;
+            overscroll-behavior: none; /* Prevents pull-to-refresh */
+        }
+
+        #game-canvas {
+            touch-action: none; /* Prevents default scroll behavior on canvas */
         }
         
         .game-header {
@@ -300,6 +303,17 @@
         let isGameOver = false;
         let gameStarted = false;
         let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+
+        // Prevent pull-to-refresh during swipe
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1 && window.scrollY === 0 && e.touches[0].clientY - touchStartY > 0) {
+                e.preventDefault(); /* Blocks refresh on downward swipe */
+            }
+        }, { passive: false });
 
         function init() {
             grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(0));

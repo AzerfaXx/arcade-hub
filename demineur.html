@@ -101,7 +101,7 @@
     <button id="music-toggle-btn" title="Activer/Désactiver la musique"></button>
     <div class="background-grid"></div>
     <header>
-        <h1 class="glitch" data-text="DÉMINEUR">DÉMINEUR</h1>
+        <h1 class="glitch" data-text="DÉMINEUR">DEMINEUR</h1>
     </header>
     <main>
         <div class="game-header">
@@ -235,8 +235,12 @@
 
                     cell.addEventListener('touchend', (e) => {
                         e.preventDefault();
-                        clearTimeout(pressTimer); // Annule le timer si le doigt est relevé avant 500ms
+                        clearTimeout(pressTimer);
+                        if (!longPressTriggered) {
+                            handleCellClick(row, col); // Appui court = clic normal
+                        }
                     });
+
                     
                     boardElement.appendChild(cell);
                     rowArray.push({ element: cell, isMine: false, isRevealed: false, isFlagged: false, adjacentMines: 0 });
