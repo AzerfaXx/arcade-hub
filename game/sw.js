@@ -1,5 +1,5 @@
 // On incrémente la version du cache pour forcer la mise à jour
-const CACHE_NAME = "arcadehub-cache-v1.3"; // Version incrémentée
+const CACHE_NAME = "arcadehub-cache-v1.4"; // Version incrémentée
 
 // Liste des ressources à mettre en cache, maintenant mieux organisée
 const ASSETS_TO_CACHE = [
@@ -23,6 +23,7 @@ const ASSETS_TO_CACHE = [
   "glow-breaker.html",
   "synth-jumper.html",
   "gem-crush.html",
+  "reflex.html",
 
   // Images des jeux pour la page d'accueil
   "images/snake.png",
@@ -36,6 +37,7 @@ const ASSETS_TO_CACHE = [
   "images/glow-breaker.png",
   "images/synth-jumper.png",
   "images/gem-crush.png",
+  "images/reflex.png",
 
   // Sons
   "sounds/ambiance.mp3",
