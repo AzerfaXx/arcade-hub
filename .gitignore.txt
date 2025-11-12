@@ -1,7 +1,0 @@
-node_modules/
-
-# Fichiers de variables d'environnement (sécurité)
-.env
-
-# Fichiers système
-.DS_Store
