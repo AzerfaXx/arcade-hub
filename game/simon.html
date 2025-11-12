@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Simon - ArcadeHub</title>
+    <link rel="stylesheet" href="style.css"> 
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Couleurs spécifiques au Simon */
+            --simon-green: #00A651;
+            --simon-red: #E74C3C;
+            --simon-yellow: #F1C40F;
+            --simon-blue: #3498DB;
+
+            --simon-green-lit: #00FF80;
+            --simon-red-lit: #FF6B6B;
+            --simon-yellow-lit: #FFE66D;
+            --simon-blue-lit: #6BE7FF;
+
+            --simon-dark-bg: #1a242f;
+            --simon-text: #ecf0f1;
+            --simon-btn-bg: #34495e;
+            --simon-btn-hover: #4e6a87;
+        }
+
+        /* Conteneur principal du jeu Simon */
+        .game-container {
+            text-align: center;
+            padding: 20px;
+            background-color: var(--simon-dark-bg);
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7), 0 0 0 10px rgba(255, 255, 255, 0.05) inset;
+            max-width: 90%;
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        .game-container:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 0 12px rgba(255, 255, 255, 0.07) inset;
+        }
+
+        /* Titres & Textes dans le jeu */
+        #main-title {
+            font-size: clamp(1.5rem, 5vw, 3rem);
+            color: var(--simon-green-lit);
+            text-shadow: 0 0 15px var(--simon-green-lit);
+            margin-bottom: 30px;
+            margin-top: 0; /* S'assure qu'il n'y a pas de marge bizarre */
+        }
+
+        #level-display {
+            font-size: clamp(1rem, 3vw, 1.8rem);
+            color: var(--simon-text);
+            margin: 10px 0;
+        }
+
+        /* Plateau de Jeu */
+        #game-board {
+            position: relative;
+            width: clamp(280px, 70vw, 500px);
+            height: clamp(280px, 70vw, 500px);
+            margin: 30px auto;
+            border-radius: 50%;
+            background-color: #000;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7), inset 0 0 20px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Pads de Couleur (Arc parfait & Animation) */
+        .color-pad {
+            width: 100%;
+            height: 100%;
+            border-radius: 0; /* Base carrée pour un arc parfait */
+            cursor: pointer;
+            opacity: 0.8;
+            transition: all 0.2s ease-out, opacity 0.1s;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.5);
+        }
+
+        .color-pad.green { background-color: var(--simon-green); border-top-left-radius: 100%; }
+        .color-pad.red { background-color: var(--simon-red); border-top-right-radius: 100%; }
+        .color-pad.yellow { background-color: var(--simon-yellow); border-bottom-left-radius: 100%; }
+        .color-pad.blue { background-color: var(--simon-blue); border-bottom-right-radius: 100%; }
+
+        .color-pad:hover:not(.lit) {
+            opacity: 0.9;
+            transform: scale(1.02); 
+        }
+
+        .color-pad.lit {
+            opacity: 1;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.4);
+            transform: scale(1.05); 
+            z-index: 2; /* Sous le centre */
+        }
+
+        .color-pad.green.lit { background-color: var(--simon-green-lit); box-shadow: 0 0 30px var(--simon-green-lit), inset 0 0 20px rgba(255, 255, 255, 0.4); }
+        .color-pad.red.lit { background-color: var(--simon-red-lit); box-shadow: 0 0 30px var(--simon-red-lit), inset 0 0 20px rgba(255, 255, 255, 0.4); }
+        .color-pad.yellow.lit { background-color: var(--simon-yellow-lit); box-shadow: 0 0 30px var(--simon-yellow-lit), inset 0 0 20px rgba(255, 255, 255, 0.4); }
+        .color-pad.blue.lit { background-color: var(--simon-blue-lit); box-shadow: 0 0 30px var(--simon-blue-lit), inset 0 0 20px rgba(255, 255, 255, 0.4); }
+
+
+        /* Panneau Central (Toujours au-dessus) */
+        .center-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--simon-dark-bg);
+            border-radius: 50%;
+            width: 50%;
+            height: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 0, 0, 0.5);
+            border: 5px solid #000;
+            z-index: 3; /* Force le centre à être au premier plan */
+        }
+
+        /* Bouton Démarrer (interne au jeu) */
+        #start-btn {
+            background-color: var(--simon-btn-bg);
+            color: var(--simon-text);
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-family: 'Press Start 2P', cursive;
+            font-size: 0.8rem;
+            cursor: pointer;
+            outline: none;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        #start-btn:hover {
+            background-color: var(--simon-btn-hover);
+            transform: translateY(-2px);
+        }
+
+        #start-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .instructions {
+            margin-top: 30px;
+            font-size: 0.7rem;
+            color: rgba(var(--simon-text), 0.7);
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.5;
+        }
+
+        /* Animation Game Over */
+        body.game-over {
+            background-color: #8B0000 !important; /* Force le fond rouge */
+        }
+
+        .game-container.game-over {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+            transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            perspective: 1000px;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+            50% { transform: translate3d(-4px, 0, 0); }
+        }
+
+        /* Media Queries (Mobile) */
+        @media (max-width: 900px) {
+            
+            main {
+                flex-direction: column !important; /* Force l'affichage vertical ! */
+                justify-content: center;
+                align-items: center;
+                padding: 20px 0 80px 0; /* Ajoute du padding vertical (plus en bas pour le bouton retour) */
+            }
+            
+            /* Les styles ci-dessous supposent que "Super Simon" et "Instructions"
+              sont en dehors de .game-container, comme sur ta capture.
+            */
+    
+            /* Cible le titre "Super Simon" */
+            main > #main-title {
+                margin: 0 0 20px 0; /* Espace en bas, annule les côtés */
+                font-size: 2rem;
+                text-align: center;
+            }
+    
+            /* Cible le texte d'instructions */
+            main > .instructions {
+                text-align: center;
+                max-width: 90%;
+                margin: 20px 0 0 0; /* Espace en haut, annule les côtés */
+                font-size: 0.8rem;
+                order: 3; /* Force les instructions à être après le jeu */
+            }
+
+            .game-container {
+                order: 2; /* Force le jeu à être au milieu */
+            }
+    
+            /* Réinitialise les transformations sur le conteneur du jeu */
+            .game-container {
+                transform: none !important; /* !important pour être sûr */
+                margin: 0;
+            }
+            .game-container:hover {
+                transform: none !important;
+            }
+
+            /* Assure que le bouton retour est en bas */
+            .back-button {
+                order: 4;
+                position: relative;
+                left: auto;
+                top: auto;
+                margin-top: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="music-toggle-btn" title="Activer/Désactiver la musique"></button>
+    <div class="background-grid"></div>
+    
+    <header>
+        <h1 class="glitch" data-text="SIMON">SIMON</h1>
+    </header>
+    
+    <main>
+        <div class="game-container">
+            <h1 id="main-title">Super Simon</h1>
+            <div id="game-board">
+                <div class="color-pad green" id="green"></div>
+                <div class="color-pad red" id="red"></div>
+                <div class="color-pad yellow" id="yellow"></div>
+                <div class="color-pad blue" id="blue"></div>
+                <div class="center-panel">
+                    <p id="level-display">Niveau 1</p>
+                    <button id="start-btn">Démarrer</button>
+                </div>
+            </div>
+            <p class="instructions">Cliquez sur "Démarrer" pour commencer. Mémorisez la séquence de couleurs et répétez-la.</p>
+        </div>
+        
+        <a href="index.html" class="back-button">&lt; RETOUR</a>
+    </main>
+
+    <audio id="sound-green" src="sounds/simon-green.mp3" preload="auto"></audio>
+    <audio id="sound-red" src="sounds/simon-red.mp3" preload="auto"></audio>
+    <audio id="sound-yellow" src="sounds/simon-yellow.mp3" preload="auto"></audio>
+    <audio id="sound-blue" src="sounds/simon-blue.mp3" preload="auto"></audio>
+    <audio id="sound-wrong" src="sounds/simon-wrong.mp3" preload="auto"></audio>
+
+
+    <script>
+        // ==================================================================
+        //         BLOC PARTAGÉ (COPIÉ DEPUIS PONG.HTML)
+        // ==================================================================
+        const musicPlayer = new Audio('sounds/ambiance.mp3');
+        musicPlayer.loop = true;
+        musicPlayer.volume = 0.3;
+
+        window.addEventListener('beforeunload', () => {
+            if (!musicPlayer.paused) {
+                localStorage.setItem('musicCurrentTime', musicPlayer.currentTime);
+            }
+        });
+
+        // Fonction son "partagée" (pour les clics UI)
+        function playSound(src, volume = 1.0) {
+            const audio = new Audio(src);
+            audio.volume = volume;
+            audio.play();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const clickableElements = document.querySelectorAll('button, a.back-button');
+            clickableElements.forEach(elem => {
+                if (elem.id !== 'music-toggle-btn') {
+                    elem.addEventListener('click', () => {
+                        playSound('sounds/click.mp3');
+                    });
+                }
+            });
+
+            const musicBtn = document.getElementById('music-toggle-btn');
+            
+            const syncMusicState = () => {
+                if (localStorage.getItem('musicState') === 'playing') {
+                    const savedTime = parseFloat(localStorage.getItem('musicCurrentTime') || '0');
+                    musicPlayer.currentTime = savedTime;
+                    musicPlayer.play().catch(e => {}); 
+                    musicBtn.classList.add('playing');
+                } else {
+                    musicPlayer.pause();
+                    musicBtn.classList.remove('playing');
+                }
+            };
+            
+            musicBtn.addEventListener('click', () => {
+                if (musicPlayer.paused) {
+                    localStorage.setItem('musicState', 'playing');
+                } else {
+                    localStorage.setItem('musicState', 'paused');
+                    localStorage.removeItem('musicCurrentTime');
+                }
+                syncMusicState();
+            });
+
+            syncMusicState();
+        });
+
+        
+        // ==================================================================
+        //         LOGIQUE SPÉCIFIQUE AU JEU SIMON
+        // ==================================================================
+        
+        const colors = ["green", "red", "yellow", "blue"];
+        let gameSequence = [];
+        let playerSequence = [];
+        let level = 0;
+        let started = false; 
+
+        // --- Éléments du DOM (spécifiques à Simon) ---
+        const startButton = document.getElementById("start-btn");
+        const levelDisplay = document.getElementById("level-display");
+        const gamePads = document.querySelectorAll(".color-pad");
+        const mainTitle = document.getElementById("main-title");
+        const simonBody = document.querySelector("body"); // On utilise une variable différente pour être clair
+        const simonGameContainer = document.querySelector(".game-container");
+
+        // --- Sons (spécifiques à Simon) ---
+        const greenSound = document.getElementById("sound-green");
+        const redSound = document.getElementById("sound-red");
+        const yellowSound = document.getElementById("sound-yellow");
+        const blueSound = document.getElementById("sound-blue");
+        const wrongSound = document.getElementById("sound-wrong");
+
+        const simonSounds = {
+            green: greenSound,
+            red: redSound,
+            yellow: yellowSound,
+            blue: blueSound,
+            wrong: wrongSound
+        };
+
+        // --- Écouteurs d'événements (spécifiques à Simon) ---
+        startButton.addEventListener("click", () => {
+            if (!started) {
+                started = true;
+                mainTitle.textContent = "Simon"; 
+                startButton.style.display = "none"; 
+                simonBody.classList.remove("game-over"); 
+                simonGameContainer.classList.remove("game-over");
+                startGame();
+            }
+        });
+
+        gamePads.forEach(pad => {
+            pad.addEventListener("click", (event) => {
+                if (started) { 
+                    const clickedColor = event.target.id;
+                    playerSequence.push(clickedColor); 
+                    
+                    animatePress(clickedColor); 
+                    playSimonSound(clickedColor); // <-- Appel à notre fonction renommée
+
+                    checkAnswer(playerSequence.length - 1); 
+                }
+            });
+        });
+
+
+        // --- Fonctions du jeu (spécifiques à Simon) ---
+
+        function startGame() {
+            level = 0;
+            gameSequence = [];
+            playerSequence = [];
+            levelDisplay.textContent = "Niveau 1";
+            setTimeout(nextSequence, 1000); 
+        }
+
+        function nextSequence() {
+            playerSequence = []; 
+            level++;
+            levelDisplay.textContent = `Niveau ${level}`;
+
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            gameSequence.push(randomColor);
+
+            playGameSequence(gameSequence);
+        }
+
+        function playGameSequence(sequence) {
+            let i = 0;
+            const interval = setInterval(() => {
+                const color = sequence[i];
+                
+                animatePress(color); 
+                playSimonSound(color);   // <-- Appel à notre fonction renommée
+
+                i++;
+                if (i >= sequence.length) {
+                    clearInterval(interval); 
+                }
+            }, getSequenceSpeed()); 
+        }
+
+        function getSequenceSpeed() {
+            if (level < 5) return 800;
+            if (level < 10) return 600;
+            return 400; 
+        }
+
+        function checkAnswer(currentIndex) {
+            if (gameSequence[currentIndex] === playerSequence[currentIndex]) {
+                if (playerSequence.length === gameSequence.length) {
+                    levelDisplay.textContent = `Niveau ${level} réussi!`;
+                    setTimeout(nextSequence, 1200); 
+                }
+            } else {
+                gameOver();
+            }
+        }
+
+        function gameOver() {
+            playSimonSound("wrong"); // <-- Appel à notre fonction renommée
+            mainTitle.textContent = "GAME OVER!";
+            levelDisplay.textContent = `Votre score : ${level - 1}`; 
+
+            simonBody.classList.add("game-over"); 
+            simonGameContainer.classList.add("game-over"); // Pour l'animation shake
+            
+            started = false;
+            setTimeout(() => {
+                startButton.textContent = "Rejouer?";
+                startButton.style.display = "block"; 
+                mainTitle.textContent = "Super Simon"; 
+            }, 1500); 
+        }
+
+        function animatePress(color) {
+            const pad = document.getElementById(color);
+            pad.classList.add("lit"); 
+            setTimeout(() => {
+                pad.classList.remove("lit"); 
+            }, 200); 
+        }
+        
+        // !-- MODIFICATION IMPORTANTE --!
+        // Renommée pour ne pas écraser la fonction playSound() partagée
+        function playSimonSound(name) { 
+            const sound = simonSounds[name];
+            if (sound) {
+                sound.currentTime = 0; 
+                sound.play();
+            }
+        }
+    </script>
+</body>
+</html>
